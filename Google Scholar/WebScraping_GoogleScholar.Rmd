@@ -1,0 +1,83 @@
+---
+title: "Google Scholar - Webscraping"
+author: "Mirella Rodriguez"
+date: "3/5/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rvest)
+library(tidyverse)
+library(xml2)
+library(dplyr)
+library(assertthat)
+library(knitr)
+library(rvest)
+```
+
+```{r}
+# Function to return first URL
+createURL <- function(scholarName){
+  
+  splitName <- str_split(scholarName, " ", simplify = TRUE)
+  completeURL <- paste0("https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", splitName[1], "+", splitName[2])
+  
+  return(completeURL)
+}
+# Function to get citation page URL
+getCitationPage <- function(firstURL){
+  
+  e <- simpleError("Google Scholar")
+  
+  html <- read_html(firstURL)
+ citationPath <-  tryCatch(html %>%
+  html_node(".gs_rt2") %>%
+  html_node("a")  %>%
+  html_attr("href"), error=function(e){stop("Google Scholar citation page not found. Please try again with a different name.")})
+  citationPage <- paste0("https://scholar.google.com", citationPath)
+  
+  return(citationPage)
+}
+# Function to get Google ID and XML document
+getIdAndXml <- function(citationPage){
+  
+  scholarID <- sub(".*?user=(.*?)&hl.*", "\\1", citationPage)
+  citationXML <- xml2::read_html(citationPage)
+  both <- list(ID = scholarID, XML = citationXML)
+  
+  return(both)
+}
+scholarName <- readline(prompt = "Please enter first and last name:")
+firstURL <- createURL(scholarName)
+citationPage <- getCitationPage(firstURL)
+IDandXML <- getIdAndXml(citationPage)
+
+# Function to create data frame
+citationPageHTML <- read_html(citationPage)
+citationInformation <- function(citationPageHTML) {
+  
+# This gets the article title
+citationTitles <- citationPageHTML %>%
+  html_nodes("a.gsc_a_at") %>%
+  html_text()
+citationAuthors <- citationPageHTML %>%
+  html_nodes(".gs_gray") %>%
+  html_text()
+citationDates <- citationPageHTML %>%
+  html_nodes(".gsc_a_hc") %>%
+  html_text()
+citationCount <- citationPageHTML %>%
+  html_nodes("a.gsc_a_ac.gs_ibl") %>%
+  html_text()
+twoData <- as.data.frame(do.call("cbind", split(citationAuthors, rep(c("Authors", "Journal Information")))))
+dataPage <- data.frame("Article Title" = citationTitles, twoData, "Year of Publication" = citationDates, "Number of Citations" = citationCount)
+return(dataPage)
+}
+dataFrameInformation <- citationInformation(citationPageHTML)
+dataFrameInformation
+
+```
